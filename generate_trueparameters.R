@@ -71,7 +71,7 @@ for (trial_type in trial_types) {
     true_dat = true_dat_obj$Generate_data(trial_type, loss_to_follow_rate=NA, adm_censoring_calendartime=NA, true_data=TRUE) 
     print( c(trial_type, j, dim(true_dat)[1]) )
     
-##### Generate parameters for Section 6, ignoring the role of Z. 
+##### Generate parameters for Section 5, ignoring the role of Z. 
     if (trial_type=='separate') { 
     } else if (trial_type=='platform') {
       settings0 = subset(settings, select=-c(z))
@@ -87,7 +87,7 @@ for (trial_type in trial_types) {
       
       ret0 = rbind(ret0, data.frame('rep'=j, true_RRs))  }  
     
-##### Generate parameters for Section 7.
+##### Generate parameters for Section 4.
     settings1 = settings[settings[,'a1']==7,]; a1 = 7; ws1 = Get_Wset_treatment(a1, true_dat)
     true_RRs = do.call(rbind, lapply(1:dim(settings1)[1], function(i){
       t = settings1[i,'t']; z = settings1[i,'z']; a2 = settings1[i,'a2']
@@ -110,12 +110,12 @@ for (trial_type in trial_types) {
   true_pars0 = rbind(ret0, true_pars0); true_pars1 = rbind(ret1, true_pars1)
 }
 
-save(true_pars0, file='pars_efficacycompetition_manyonmargins.Rdata')
-save(true_pars1, file='pars_efficiencygain_manyonmargins.Rdata')
+save(true_pars0, file='pars_efficacycompetition.Rdata')
+save(true_pars1, file='pars_efficiencygain.Rdata')
 
 
 ##### Collect and summarize the results
-load('pars_efficiencygain_manyonmargins.Rdata')
+load('pars_efficiencygain.Rdata')
 true_pars_dat = true_pars1
 settings1 = settings[settings[,'a1']==7,]
 
@@ -132,10 +132,10 @@ true_pars = do.call(rbind, lapply(trial_types, function(trial_type){
                         'adj_RRdiff'=true_pars_vals[,'rr1']-true_pars_vals[,'rr2'] ) ) }))
  }))
 
-save(true_pars, file='true_pars_efficiencygain_manyonmargins.Rdata')
+save(true_pars, file='true_pars_efficiencygain.Rdata')
 
 
-load('pars_efficacycompetition_manyonmargins.Rdata')
+load('pars_efficacycompetition.Rdata')
 true_pars_dat = true_pars0
 true_pars = do.call(rbind, lapply(1:dim(settings)[1], function(i){  
     t = settings[i,'t']; a1 = settings[i,'a1']; a2 = settings[i,'a2']
@@ -146,5 +146,5 @@ true_pars = do.call(rbind, lapply(1:dim(settings)[1], function(i){
                         'RRratio'=true_pars_vals[,'rr1']/true_pars_vals[,'rr2'],
                         'RRdiff'=true_pars_vals[,'rr1']-true_pars_vals[,'rr2'] ) ) }))
 
-save(true_pars, file='true_pars_efficacycompetition_manyonmargins.Rdata')
+save(true_pars, file='true_pars_efficacycompetition.Rdata')
 
