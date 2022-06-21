@@ -9,35 +9,44 @@ Estimation <- setRefClass( "Estimation",
   ),
                                
   methods = list(
-  initialize = function(input_data = dat){ input_data <<- input_data; N <<- dim(input_data)[1] },
+    initialize = function(input_data = dat){
+      input_data <<- input_data
+      N <<- dim(input_data)[1]
+      #print("Initialized New Class!")
+  },
 
-  Strat_KMSurF = function(t, ws, a, z, trial_type, label_a, Delta_val=1){ 
-    # ws: a column vector with >=1 element
-    if (trial_type=='platform') { data_used = subset(input_data, W %in% ws & A==a & Z==z, select=c(X, Delta))
+  Strat_KMSurF = function(t, ws, a, z, trial_type, label_a, Delta_val=1){ # ws: a column vector with >=1 element
+    if (trial_type=='platform') { #data_used = subset(input_data, W %in% ws & A==a & Z==z, select=c(X, Delta))
+      data_used = subset(input_data, W %in% ws & A==a & Z==z)  
     } else if (trial_type=='separate') { 
-      data_used = subset(input_data, W %in% ws & A==a & Z==z & Label_A==label_a, select=c(X, Delta)) }
+      #data_used = subset(input_data, W %in% ws & A==a & Z==z & Label_A==label_a, select=c(X, Delta)) 
+      data_used = subset(input_data, W %in% ws & A==a & Z==z & Label_A==label_a)
+    }
     
     data_km = data.frame(X=data_used$X, Delta=1*(data_used$Delta==Delta_val))
     km = survfit(Surv(X, Delta)~1, data=data_km); rm(data_km);
     survest = cbind(km$time, km$surv)
       
     if ( length(which(survest[, 1] <= t)) > 0 ) {
-      return( survest[max(which(survest[, 1] <= t)), 2] )  
-    } else { stop('Survival probability too close to zero') }
+      tryCatch( { temp = survest[max(which(survest[, 1] <= t)), 2]; return(temp) },
+                error = function(err){ print(err); 
+                                       save(data_used, file=paste0('errdata_', scenario, '_', trial_type, '_', 
+                                            meth, '_', adm_censoring_calendartime, '_', r, '.Rdata')) })  
+    } else { return(1) }
   },
   
   Strat_CHF = function(t, ws, a, z, trial_type, label_a, Delta_val=1){ # ws: a column vector with >=1 element
     if (trial_type=='platform') { data_used = subset(input_data, W %in% ws & A==a & Z==z) 
-                                  data_used = data_used[order(data_used$X),]; N0 = N
+                                  data_used = data_used[order(data_used$X),]; N0 = N # N0 = dim(data_used)[1]
     } else if (trial_type=='separate') { data_used0 = subset(input_data, Label_A==label_a)
                                          data_used = subset(data_used0, W %in% ws & A==a & Z==z) 
                                          data_used = data_used[order(data_used$X),]
-                                         N0 = dim(data_used0)[1] }
+                                         N0 = dim(data_used0)[1] } #N0 = dim(data_used)[1]
     
     X = as.vector(data_used$X); Delta = as.vector(1*(data_used$Delta==Delta_val))
     A = as.vector(data_used$A); W = as.vector(data_used$W); Z = as.vector(data_used$Z)
     
-    time_comparison1 = diag(length(X))
+    time_comparison1 = diag(length(X))  # outer(X, X, '==')
     time_comparison2 = outer(X, X, '>=')
     
     event_counting = colSums(time_comparison1*Delta*(W %in% ws & A==a & Z==z)) / N0; 
@@ -67,19 +76,18 @@ Estimation <- setRefClass( "Estimation",
     return( sum(temp['top'])/sum(temp['bottom']) )
   },
   
-  IF_stratCHF = function(t, ws, a, z, trial_type, label_a, result_type, Delta_val=1){ 
-    # ws: a column vector with >=1 element
+  IF_stratCHF = function(t, ws, a, z, trial_type, label_a, result_type, Delta_val=1){ # ws: a column vector with >=1 element
     if (trial_type=='platform') { data_used = subset(input_data, W %in% ws & A==a & Z==z) 
-                                  data_used = data_used[order(data_used$X),]; N0 = N
+                                  data_used = data_used[order(data_used$X),]; N0 = N #N0 = dim(data_used)[1]
     } else if (trial_type=='separate') { data_used0 = subset(input_data, Label_A==label_a)
                                          data_used = subset(data_used0, W %in% ws & A==a & Z==z) 
                                          data_used = data_used[order(data_used$X),] 
-                                         N0 = dim(data_used0)[1] }
+                                         N0 = dim(data_used0)[1] } # N0 = dim(data_used)[1]
     
     X = as.vector(data_used$X); Delta = as.vector(1*(data_used$Delta==Delta_val))
     A = as.vector(data_used$A); W = as.vector(data_used$W); Z = as.vector(data_used$Z)
     
-    time_comparison1 = diag(length(X))
+    time_comparison1 = diag(length(X))  # outer(X, X, '==')
     time_comparison2 = outer(X, X, '>=')
       
     event_counting = colSums(time_comparison1*Delta*(W %in% ws & A==a & Z==z))/N0; 
@@ -96,16 +104,13 @@ Estimation <- setRefClass( "Estimation",
     return( ret ) 
   },
   
-  IF_stratKM = function(t, ws, a, z, trial_type, label_a, result_type, Delta_val=1){ 
-    # ws: a column vector with >=1 element
+  IF_stratKM = function(t, ws, a, z, trial_type, label_a, result_type, Delta_val=1){ # ws: a column vector with >=1 element
     S1_z = Strat_KMSurF(t, ws, a, z, trial_type, label_a, Delta_val);
     ret <- switch(result_type,
                   iid = { iid_data = IF_stratCHF(t, ws, a, z, trial_type, label_a, 'iid', Delta_val) 
-                          data.frame('a'=iid_data[,'a'], 'time'=iid_data[,'time'], 
-                                     'iid_vals'=S1_z*iid_data[,'iid_vals']) },
+                          data.frame('a'=iid_data[,'a'], 'time'=iid_data[,'time'], 'iid_vals'=S1_z*iid_data[,'iid_vals']) },
                   sum = { S1_z*IF_stratCHF(t, ws, a, z, trial_type, label_a, 'sum', Delta_val) },
-                  square_sum = { ((S1_z)^2)*IF_stratCHF(t, ws, a, z, trial_type, label_a, 'square_sum', 
-                                                        Delta_val) },
+                  square_sum = { ((S1_z)^2)*IF_stratCHF(t, ws, a, z, trial_type, label_a, 'square_sum', Delta_val) },
                   stop("IF_stratKM: choose iid, sum or square_sum"))
     return( ret )
   },
@@ -115,8 +120,7 @@ Estimation <- setRefClass( "Estimation",
     } else if (trial_type=='separate') { data_used = subset(input_data, Label_A==a) 
     data_used = data_used[order(data_used$X),] }
     
-    X = as.vector(data_used$X); A = as.vector(data_used$A); W = as.vector(data_used$W); 
-    Z = as.vector(data_used$Z)
+    X = as.vector(data_used$X); A = as.vector(data_used$A); W = as.vector(data_used$W); Z = as.vector(data_used$Z)
     
     p_zw = mean(Z==z & W %in% ws); p_w = mean(W %in% ws); 
     p_z_given_w = p_zw/p_w
@@ -139,8 +143,7 @@ Estimation <- setRefClass( "Estimation",
     return( ret ) 
   },
     
-  IF_stratRR = function(t, ws, a, z, trial_type, result_type, Delta_val=1){ 
-    # ws: a column vector with >=1 element
+  IF_stratRR = function(t, ws, a, z, trial_type, result_type, Delta_val=1){ # ws: a column vector with >=1 element
     SurF0_z = Strat_KMSurF(t, ws, a=0, z, trial_type, label_a=a, Delta_val); 
     SurF1_z = Strat_KMSurF(t, ws, a, z, trial_type, label_a=a, Delta_val)
     R1 = SurF1_z/(1-SurF0_z); R2 = (1-SurF1_z)*SurF0_z/(1-SurF0_z)^2
@@ -154,16 +157,13 @@ Estimation <- setRefClass( "Estimation",
                                                      +R2*iid_data_0[,'iid_vals']) ) },
                   sum = { ( -R1*IF_stratCHF(t, ws, a, z, trial_type, label_a=a, 'sum', Delta_val) 
                             +R2*IF_stratCHF(t, ws, a=0, z, trial_type, label_a=a, 'sum', Delta_val) ) },
-                  square_sum = { ( (R1^2)*IF_stratCHF(t, ws, a, z, trial_type, label_a=a, 
-                                                      'square_sum', Delta_val) 
-                                   +(R2^2)*IF_stratCHF(t, ws, a=0, z, trial_type, label_a=a, 'square_sum', 
-                                                       Delta_val) ) },
+                  square_sum = { ( (R1^2)*IF_stratCHF(t, ws, a, z, trial_type, label_a=a, 'square_sum', Delta_val) 
+                                   +(R2^2)*IF_stratCHF(t, ws, a=0, z, trial_type, label_a=a, 'square_sum', Delta_val) ) },
                   stop("IF_stratRR: choose iid, sum or square_sum"))
     return( ret )
   },
     
-  IF_stratLogRR = function(t, ws, a, z, trial_type, result_type, Delta_val=1){ 
-    # ws: a column vector with >=1 element
+  IF_stratLogRR = function(t, ws, a, z, trial_type, result_type, Delta_val=1){ # ws: a column vector with >=1 element
     srr = Strat_RelativeRisk(t, ws, a, z, Delta_val); 
     ret <- switch(result_type,
                   iid = { iid_data = IF_stratRR(t, ws, a, z, trial_type, 'iid', Delta_val) 
@@ -176,8 +176,7 @@ Estimation <- setRefClass( "Estimation",
     return( ret )
   },
   
-  IF_adjustRR = function(t, ws, a, trial_type, result_type, Delta_val=1){ 
-    # ws: a column vector with >=1 element
+  IF_adjustRR = function(t, ws, a, trial_type, result_type, Delta_val=1){ # ws: a column vector with >=1 element
     if (trial_type=='platform') { data_used = input_data[order(input_data$X),]
     } else if (trial_type=='separate') { data_used = subset(input_data, Label_A==a) 
     data_used = data_used[order(data_used$X),] }
@@ -213,8 +212,7 @@ Estimation <- setRefClass( "Estimation",
     Q0 = 1/(1-sum((temp1$SurF0_z)*(temp1$p_z_given_w)))
       
     ret <- switch(result_type,
-                  iid = { data.frame( 'a'=temp0[,'a'], 'time'=temp0[,'time'], 
-                                      'iid_vals'=Q0*temp0[,'iid_vals_z'] ) },
+                  iid = { data.frame( 'a'=temp0[,'a'], 'time'=temp0[,'time'], 'iid_vals'=Q0*temp0[,'iid_vals_z'] ) },
                   sum = { sum(Q0*temp0[,'iid_vals_z']) },
                   square_sum = { sum((Q0*temp0[,'iid_vals_z'])^2) },
                   stop("IF_adjustRR: choose iid, sum or square_sum"))
@@ -225,10 +223,8 @@ Estimation <- setRefClass( "Estimation",
     trt_arms = sort(unique(input_data$A))[-1]
     est_vars = do.call(rbind, lapply(trt_arms, function(trt){
                   w_trt = Get_Wset_treatment(trt, input_data)
-                  est_var_trt = ( IF_stratRR(t, w_trt, trt, z, trial_type='platform', 'square_sum', 
-                                             Delta_val=1)/N 
-                                  - (IF_stratRR(t, w_trt, trt, z, trial_type='platform', 'sum', 
-                                                Delta_val=1)/N)^2 )
+                  est_var_trt = ( IF_stratRR(t, w_trt, trt, z, trial_type='platform', 'square_sum', Delta_val=1)/N 
+                                  - (IF_stratRR(t, w_trt, trt, z, trial_type='platform', 'sum', Delta_val=1)/N)^2 )
                   return( est_var_trt ) }))
     var_mat = diag(as.vector(est_vars))
   
@@ -254,8 +250,7 @@ Estimation <- setRefClass( "Estimation",
                       return( data.frame( 'time' = time,
                                           'iid_a1' = iid_vals_a1[1:min_length],
                                           'iid_a2' = iid_vals_a2[1:min_length] ) ) }))
-                    est_cov_a1a2 = sum(temp[,'iid_a1']*temp[,'iid_a2'])/N - 
-                                   (sum(temp[,'iid_a1'])/N)*(sum(temp[,'iid_a2'])/N) }
+                    est_cov_a1a2 = sum(temp[,'iid_a1']*temp[,'iid_a2'])/N - (sum(temp[,'iid_a1'])/N)*(sum(temp[,'iid_a2'])/N) }
                   return( data.frame( 'loc1'=a1, 'loc2'=a2, 'val'=est_cov_a1a2 ) ) }))
   
     cov_mat = do.call(rbind, lapply(1:length(trt_arms), function(i){
@@ -289,8 +284,7 @@ Estimation <- setRefClass( "Estimation",
     return( list(est=est, sd=sqrt(est_var), se=sqrt(est_var)/sqrt(N), ci=ci, pval=pval) )
   },
   
-  Estimate_contrast_stratRRs = function(t, ws1, ws2, a1, a2, z, trial_type, contrast_func, alpha, 
-                                        Delta_val=1){
+  Estimate_contrast_stratRRs = function(t, ws1, ws2, a1, a2, z, trial_type, contrast_func, alpha, Delta_val=1){
     # ws1, ws2: column vectors with >=1 element
     if (trial_type=='platform') { N1=N2=N;
     } else if (trial_type=='separate') {
@@ -330,6 +324,8 @@ Estimation <- setRefClass( "Estimation",
       est_cov_a1a2 = sum(temp[,'iid_a1']*temp[,'iid_a2'])/N - (sum(temp[,'iid_a1'])/N)*(sum(temp[,'iid_a2'])/N) }
       est_var = ((Theta1)^2)*est_var_a1 + ((Theta2)^2)*est_var_a2 + 2*Theta1*Theta2*est_cov_a1a2
     } else if (trial_type=='separate'){
+      # sum_probs_separate_trials = sum(Get_probs_separate_trials(input_data)[,'prob'])
+      # est_var = sum_probs_separate_trials*( ((Theta1)^2)*est_var_a1 + ((Theta2)^2)*est_var_a2 ) 
       probs_separate_trials = Get_probs_separate_trials(input_data)
       sum_probs_separate_trials = sum(probs_separate_trials[,'prob'])
       prob_a1_separate_trial = probs_separate_trials[probs_separate_trials$a==a1,'prob'] 
@@ -396,7 +392,80 @@ Estimation <- setRefClass( "Estimation",
     pval = pnorm(abs(sqrt(N)*est/sqrt(est_var)), mean=0, sd=1, lower.tail=FALSE, log.p=FALSE)
     
     return( list(est=est, sd=sqrt(est_var), se=sqrt(est_var)/sqrt(N), ci=ci, pval=pval) )
-  }
+  },
+  
+  ### Cox model only for platform trials  ### The sample selection issues to be fixed
+  ### Also note how to handle the ties
+  Estimate_stratCox = function(t, ws, a, Delta_val=1){ # ws: a column vector with >=1 element
+    data_used = subset(input_data, W %in% ws & A %in% c(a,0), select=c(X, Delta, W, A))
+    data_used = data_used[order(data_used$X),]
+    X = as.vector(data_used$X); Delta = as.vector(1*(data_used$Delta==Delta_val));
+    
+    model_fit = coxph(Surv(X, Delta)~factor(A), data_used)
+    est_beta_a = model_fit$coefficients[[1]]
+    
+    S_elements = Cox_Elements_self(est_beta_a, ws, a, data_used)
+    S0 = S_elements$S0; S1 = S_elements$S1; S2 = S_elements$S2
+    E = S1/S0; V = S2/S0
+    
+    time_comparison1 = outer(X, X, '==')
+    Delta_matrix = matrix(rep(Delta, length(X)), nrow=length(X))
+    event_counting = colMeans(time_comparison1*Delta_matrix)
+    H = sum((V-E^2)*(event_counting)*(X <= t))/N
+    return( data.frame('est_beta_a' = est_beta_a, 'est_var_a' = 1/H) ) 
+  },
+  
+  Estimate_stratCoxs = function(t, ws1, ws2, a1, a2, alpha, test_type, Delta_val=1){ # ws1, ws2: column vectors with >=1 element
+    wa_list = list(list(ws1, a1), list(ws2, a2))
+    results = do.call(rbind, lapply(1:length(wa_list), function(i){
+      ws = unlist(wa_list[[i]][1]); a = unlist(wa_list[[i]][2])
+      data_used = subset(input_data, W %in% ws & A %in% c(a, 0), select=c(X, Delta, W, A))
+      data_used = data_used[order(data_used$X),]
+      X = as.vector(data_used$X); Delta = as.vector(1*(data_used$Delta==Delta_val));
+      
+      model_fit = coxph(Surv(X, Delta)~factor(A), data_used)
+      est_beta_a = model_fit$coefficients[[1]]
+      S_elements = Cox_Elements_self(est_beta_a, ws, a, data_used)
+      S0 = S_elements$S0; S1 = S_elements$S1; S2 = S_elements$S2
+      E = S1/S0; V = S2/S0
+      
+      time_comparison1 = outer(X, X, '==')
+      Delta_matrix = matrix(rep(Delta, length(X)), nrow=length(X))
+      event_counting = colMeans(time_comparison1*Delta_matrix)
+      H = sum((V-E^2)*(event_counting)*(X <= t))/N
+      
+      return( data.frame('a'=a, 'X'=X, 'E'=E, 'V'=V, 'H'=H, 'est_beta_a'=est_beta_a) ) }))
+    
+    H1 = unique(results[results$a==a1, 'H']); H2 = unique(results[results$a==a2, 'H'])
+    est1 = unique(results[results$a==a1, 'est_beta_a']) 
+    est2 = unique(results[results$a==a2, 'est_beta_a'])
+    
+    data_used0 = subset(input_data, W %in% intersect(ws1, ws2) & A %in% c(a1, a2, 0), select=c(X, Delta, A))
+    model_fit0 = coxph(Surv(X, Delta)~factor(A), data_used0)
+    basehaz_data = basehaz(model_fit0)
+    temp = do.call(rbind, lapply(1:length(basehaz_data$time), function(i){
+      time = basehaz_data$time[i]; basehaz_val = basehaz_data$hazard[i]
+      E1 = results[results$a==a1 & results$X==time, 'E']; E2 = results[results$a==a2 & results$X==time, 'E']
+      p0 = sum(data_used0$X >= time & data_used0$A==0)/N
+      return( data.frame('time'=time, 'basehaz_val'=basehaz_val, 'E1'=E1, 'E2'=E2, 'p0'=p0) )
+    }))
+    integral_term = sum(apply(temp[,c('basehaz_val', 'E1', 'E2', 'p0')], 1, prod)*(temp$time <= t))
+    est_cov = integral_term/(H1*H2)
+    
+    hr_difference = exp(est1) - exp(est2);
+    est_var_hr_difference = exp(2*est1)/H1 + exp(2*est2)/H2 + exp(est1+est2)*est_cov
+    ci_hrdiff = c( hr_difference-qnorm(1-alpha)*sqrt(est_var_hr_difference)/sqrt(N), 
+                   hr_difference+qnorm(1-alpha)*sqrt(est_var_hr_difference)/sqrt(N) )
+    rej_hrdiff = 1*( ci[1]>0 | ci[2]<0 )
+    
+    pval0 = pnorm(abs(sqrt(N)*hr_difference/sqrt(est_var_hr_difference)), mean=0, sd=1, lower.tail=FALSE, log.p=FALSE)
+    pval_hrdiff = if (test_type=='right-tailed') { pval0 } else if (test_type=='two-sided') { 2*pval0 }
+    
+    return( list(est1 = est1, est2 = est2, est_var1 = 1/H1, est_var2 = 1/H2, est_cov = est_cov,
+                 hr1 = exp(est1), hr2 = exp(est2), est_var_hr1 = exp(2*est1)/H1, est_var_hr2 = exp(2*est2)/H2,
+                 hr_difference = hr_difference, est_var_hr_difference = est_var_hr_difference,
+                 ci_hrdiff = ci_hrdiff, rej_hrdiff = rej_hrdiff, pval_hrdiff = pval_hrdiff) )
+  }  
  )
 )  
     

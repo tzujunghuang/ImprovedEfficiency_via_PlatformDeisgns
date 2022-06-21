@@ -2,8 +2,6 @@
 ##### under the setting in our submitted manuscript 
 ##### or a selected setting for a quick coding check.
 
-set.seed(r)
-
 ##### Make sure we have every package needed
 package_list = c('survival', 'MASS', 'Matrix', 'dplyr', 'PWEALL', 'tidyr', 'mvtnorm', 'nloptr')
 for (package in package_list){
@@ -13,7 +11,7 @@ num_digits = 7; options(digits = num_digits)
 
 
 ##### Should be in the same working directory	
-wk_dir = 'D:/Covid19_vaccine efficacy/public R codes/' # where files are saved
+wk_dir = 'D:/Covid19_vaccine efficacy/public_R_codes/' # where files are saved
 setwd(wk_dir)
 to_dir = wk_dir
 source('preliminary_functions.R')
@@ -23,82 +21,114 @@ source('code_KMbased_Coxbased_InfluFuncs.R')
 ##### Methods for efficacy comparison
 meth_vecs = c('intersection_test', 'likelihood_ratio_test')
 
-##### Simulation settings
-trial_types = c('platform', 'separate')
-loss_to_follow_rate = '10%' # Loss_to_follow_rates = c('2%', '10%')
-loss_to_follow_pars = c(600, 120) # Loss_to_follow_parameters corresponding to '2%' and '10%'
-tolerances = c(0.7) # Selected tolerance criteria delta = 0.7
-
+##### Setting selection
 setting_index = 'selected_setting'
 setting_choice = switch(setting_index,
-### The full setting in the manuscript
+  ### The full setting in the manuscript
   full_setting = { adm_censoring_calendartimes = c(6, 18) # Administrative censoring times 
                    t = c(3, 6) # Selected t's
                    pre_trts = c(7, 9) # Pre-selected treatments to be compared
                    margins = seq(0, 0.4, 0.1) # Selected non-inferiority margins
-                 },   
-### The selected simplified setting 
-  selected_setting = { adm_censoring_calendartimes = c(6) # Administrative censoring times 
+  },   
+  ### The selected simplified setting 
+  selected_setting = { adm_censoring_calendartimes = c(18) # Administrative censoring times 
                        t = c(6) # Selected t's
-                       pre_trts = c(7) # Pre-selected treatments to be compared
+                       pre_trts = c(9) # Pre-selected treatments to be compared
                        margins = seq(0, 0.2, 0.1) # Selected non-inferiority margins
-                     },
+  },
   stop("setting_choice: choose full_setting or selected_setting"))
 
-settings = expand.grid(t, pre_trts, margins, tolerances); 
-colnames(settings) = c('t', 'pre_trt', 'margin', 'tolerance')
-settings = settings[with(settings, order(t, pre_trt, margin, tolerance)),]
-alpha_one_side = 0.025 # Significance level for one-side
+settings = expand.grid(t, pre_trts, margins); 
+colnames(settings) = c('t', 'pre_trt', 'margin')
+settings = settings[with(settings, order(t, pre_trt, margin)),]
+
 
 ##### Data generation settings
+loss_to_follow_rate = '10%' # Loss_to_follow_rates = c('2%', '10%')
+loss_to_follow_pars = c(600, 120) # Loss_to_follow_parameters corresponding to '2%' and '10%'
+alpha_one_side = 0.025 # Significance level for one-side
+
+trial_types = c('platform', 'separate')
 k = 10 # Number of interventions
 m = 5 # Number of windows
 p = 1 # Number of predictors
-input_n_m=c(1000, 900, 1200, 1400, 1000) # Basic unit sizes of windows  
+
+
 # Treatment labels in windows
 input_treatment_labels_in_windows = list('window1' = c(2, 3, 4, 7, 8, 9, 10),
                                          'window2' = c(1, 4, 5, 6, 7, 9, 10),
                                          'window3' = c(4, 5, 6, 7, 9, 10),
                                          'window4' = c(1, 3, 6, 8, 9, 10),
                                          'window5' = c(1, 2, 3, 7, 8, 10))
+
 # Incidence rates over windows for placebo and treatments
-input_incidence_rates = matrix((1/100)*c( 2.1,   2.1,    1,    0.7,    0.7,
-                                          2.1,   2.1,    1,    0.7,    0.7,
-                                         1.89,  1.89,  0.9,   0.63,   0.63,
-                                         1.68,  1.68,  0.8,   0.56,   0.56,
-                                         1.47,  1.47,  0.7,   0.49,   0.49,
-                                         1.26,  1.26,  0.6,   0.42,   0.42,
-                                         1.05,  1.05,  0.5,   0.35,   0.35,
-                                         0.84,  0.84,  0.4,   0.28,   0.28,
-                                         0.84,  0.84,  0.4,   0.28,   0.28,
-                                         0.63,  0.63,  0.3,   0.21,   0.21,
-                                         0.63,  0.63,  0.3,   0.21,   0.21), byrow=TRUE, ncol=m)
-rownames(input_incidence_rates) = 0:k
+r0 = (1/100)*c(2.1, 2.1, 1, 0.7, 0.7)
+rr_vals = c(seq(1,0.4,-0.1), 0.4, 0.3, 0.3)
+
+rA_mat0 = do.call(rbind, lapply(1:length(rr_vals), function(i){
+  rA = 100*log(1 - rr_vals[i]*(1-exp(-6*r0)))/(-6) 
+  return(rA)
+}))
+rA_mat = rbind(rA_mat0[1,], rA_mat0)
+rA_mat_rounded = round(rA_mat,1)
+
+# Original
+input_n_m_o = c(1000, 900, 1200, 1400, 1000)
+input_incidence_rates_o = (1/100)*rA_mat
+
+# Lower sample sizes
+input_n_m_l = c(1000, 900, 1200, 1400, 1000)/20  # Basic unit sizes of windows
+input_incidence_rates_l = (20/100)*rA_mat
+
 # Bands and length of windows
 input_window_bands = data.frame(lower_end = c(0, 1, 1.5, 2, 2.5), upper_end = c(1, 1.5, 2, 2.5, 3))
 rownames(input_window_bands) = 1:m
 input_window_bands$length = input_window_bands$upper_end - input_window_bands$lower_end
 
+# Scenarios
+scenario_vecs = c('original-pexp', 'lower_sample-pexp')
+input_n_m_list = list('original-pexp' = input_n_m_o, 'lower_sample-pexp' = input_n_m_l)
+input_incidence_rates_list = list('original-pexp' = input_incidence_rates_o,
+                                  'lower_sample-pexp' = input_incidence_rates_l)
 
-col_names = c('trial_type', 'adm_censoring_calendartime', 't', 'pre_trt', 'margin',
+##### Simulation settings
+tolerances = c(0.7) # Selected tolerance criteria delta = 0.7
+simulation_settings = expand.grid(scenario_vecs, trial_types, tolerances)
+colnames(simulation_settings) = c('scenario', 'trial_type', 'tolerance')
+simulation_settings = simulation_settings[with(simulation_settings, order(scenario, tolerance)),]
+
+
+col_names = c('scenario', 'trial_type', 'adm_censoring_calendartime', 't', 'pre_trt', 'margin',
               'tolerance', 'method', 'init_rej', 'rej', paste0('rest_rej', 1:(k-1)))
-sim = data.frame( matrix(nrow=1, ncol=length(col_names)) ); colnames(sim) = col_names
+#sim = data.frame( matrix(nrow=1, ncol=length(col_names)) ); colnames(sim) = col_names
 
-for (trial_type in trial_types){
+
+sim = do.call(rbind, lapply(1:dim(simulation_settings)[1], function(idx){
+  scenario = as.character(simulation_settings[idx,'scenario']);  
+  trial_type =  as.character(simulation_settings[idx,'trial_type']);
+  tolerance = as.numeric(simulation_settings[idx,'tolerance']);
+  
+  input_n_m = input_n_m_list[[scenario]]
+  input_incidence_rates = input_incidence_rates_list[[scenario]]
+  rownames(input_incidence_rates) = 0:k; colnames(input_incidence_rates) = 1:m
+  
+  input_rate_mat = Get_piecewise_rates(input_incidence_rates, k, m, 1, 5, input_window_bands)
+  
+  dat_obj = Generate_SurvivalData$new(treatment_labels_in_windows=input_treatment_labels_in_windows,
+                                      incidence_rates=input_incidence_rates, rates=input_rate_mat,
+                                      window_bands=input_window_bands, n_m=input_n_m, p=1)
+  
   for (adm_censoring_calendartime in adm_censoring_calendartimes){
   
-    dat_obj = Generate_SurvivalData$new(treatment_labels_in_windows = input_treatment_labels_in_windows,
-                                        incidence_rates = input_incidence_rates, 
-                                        window_bands = input_window_bands, n_m = input_n_m, p=1)
-    dat = dat_obj$Generate_data(trial_type, loss_to_follow_rate, adm_censoring_calendartime, 
-                                loss_to_follow_pars = loss_to_follow_pars, true_data=FALSE)
-    dat$Z = 1
+  dat = dat_obj$Generate_data(trial_type, loss_to_follow_rate, adm_censoring_calendartime, 
+                              distribution='piecewise-exponential',
+                              loss_to_follow_pars=loss_to_follow_pars, true_data=FALSE)
+  dat$Z = 1
+  obj <- Estimation$new(input_data=dat)
+  N_val = obj$N;
+  print(c(scenario, trial_type, loss_to_follow_rate, adm_censoring_calendartime))
 
-    obj <- Estimation$new(input_data=dat)
-    N_val = obj$N;
-    print(c(trial_type, loss_to_follow_rate, adm_censoring_calendartime))
-   
-    if (trial_type=='platform'){
+  if (trial_type=='platform'){
       
       est_cov_mats_list = lapply(unique(settings[,'t']), function(time){ 
         est_cov = obj$Estimate_cov_mat(t=time, z=1) 
@@ -116,7 +146,7 @@ for (trial_type in trial_types){
       
       ret = do.call(rbind, lapply(1:dim(settings)[1], function(i){
         t = settings[i,'t']; pre_trt = settings[i,'pre_trt']; margin = settings[i,'margin'];
-        tolerance = settings[i,'tolerance']; w_pre_trt = Get_Wset_treatment(pre_trt, dat); 
+        w_pre_trt = Get_Wset_treatment(pre_trt, dat); 
         trt_arms = sort(unique(dat$A))[-1]; rest_trts = sort(trt_arms[trt_arms != pre_trt]) 
         
         ret0 = do.call(rbind, lapply(meth_vecs, function(meth){
@@ -137,7 +167,7 @@ for (trial_type in trial_types){
             rej = 1*( all(rest_tests==1) & init_test==1 )
             
             temp = data.frame( t(c(t, pre_trt, margin, tolerance, meth, init_rej, rej, rest_tests)) )
-            colnames(temp) = col_names[3:length(col_names)]
+            colnames(temp) = col_names[which(col_names=='t'):length(col_names)]
             return( temp )
             
           } else if (meth=='likelihood_ratio_test'){
@@ -154,14 +184,14 @@ for (trial_type in trial_types){
             rej = 1*( Tn >= qchisq(1-alpha_one_side, df=k, ncp=0, lower.tail=TRUE, log.p=FALSE) )
             
             temp = data.frame( t(c(t, pre_trt, margin, tolerance, meth, init_rej=NA, rej, rep(NA,k-1))) )
-            colnames(temp) = col_names[3:length(col_names)]
+            colnames(temp) = col_names[which(col_names=='t'):length(col_names)]
             return( temp )
           }
         }))
         return( ret0 )
       }))
     
-    } else if (trial_type=='separate'){
+  } else if (trial_type=='separate'){
       
       trt_arms = sort(unique(dat$A))[-1]; 
       rets_list = lapply(unique(settings[,'t']), function(time){ 
@@ -174,7 +204,7 @@ for (trial_type in trial_types){
     
       ret = do.call(rbind, lapply(1:dim(settings)[1], function(i){
         t = settings[i,'t']; pre_trt = settings[i,'pre_trt']; margin = settings[i,'margin'];
-        tolerance = settings[i,'tolerance']; w_pre_trt = Get_Wset_treatment(pre_trt, dat);
+        w_pre_trt = Get_Wset_treatment(pre_trt, dat);
         trt_arms = sort(unique(dat$A))[-1]; rest_trts = sort(trt_arms[trt_arms != pre_trt])  
         
         ret0 = do.call(rbind, lapply(meth_vecs, function(meth){
@@ -194,7 +224,7 @@ for (trial_type in trial_types){
             rej = 1*( all(rest_tests==1) & init_test==1 )
             
             temp = data.frame( t(c(t, pre_trt, margin, tolerance, meth, init_rej, rej, rest_tests)) )
-            colnames(temp) = col_names[3:length(col_names)]  
+            colnames(temp) = col_names[which(col_names=='t'):length(col_names)]  
             return( temp )
             
           } else if (meth=='likelihood_ratio_test'){
@@ -211,19 +241,20 @@ for (trial_type in trial_types){
             rej = 1*( Tn >= qchisq(1-alpha_one_side, df=k, ncp=0, lower.tail=TRUE, log.p=FALSE) )
             
             temp = data.frame( t(c(t, pre_trt, margin, tolerance, meth, init_rej=NA, rej, rep(NA,k-1))) ) 
-            colnames(temp) = col_names[3:length(col_names)]  
+            colnames(temp) = col_names[which(col_names=='t'):length(col_names)]  
             return( temp )
           }  
         })) 
         return( ret0 )
       })) 
-    }   
-    gc()
+  }   
+  gc()
     
-    sim0 = ret; sim0$trial_type = trial_type; sim0$adm_censoring_calendartime = adm_censoring_calendartime
-    sim = rbind(sim, sim0)
+  sim0 = ret; sim0$scenario = scenario;
+  sim0$trial_type = trial_type; sim0$adm_censoring_calendartime = adm_censoring_calendartime
+  return( sim0 )
  }
-}
-
-sim = sim[-1,]
+}))
+  
+  
 rownames(sim) = 1:nrow(sim)

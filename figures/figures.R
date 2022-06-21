@@ -3,7 +3,7 @@ package_list = c('ggplot2', 'latex2exp', 'grid', 'tidyr', 'dplyr')
 for (package in package_list){
   require(package, character.only=TRUE); library(package, character.only=TRUE) }
 
-wk_dir = 'D:/Covid19_vaccine efficacy/public R codes/figures/' #where files are saved
+wk_dir = 'D:/Covid19_vaccine efficacy/public_R_codes/figures/' #where files are saved
 setwd(wk_dir)
 to_dir = wk_dir
 
@@ -38,6 +38,9 @@ plt = ggplot(data_example, aes(x=ws, y=ars, group=arm_label, label=as.character(
             axis.title.x = element_text(size=22), axis.title.y = element_text(size=22), 
             legend.text = element_text(size=22), legend.title = element_blank(),
             strip.text.y = element_text(size=20))
+
+filename = paste0(to_dir, "illustration_of_bridging_assumption.eps")
+ggsave("illustration_of_bridging_assumption.eps", height=5, width=9)
 
 
 ### Figure 2: Ratio of confidence interval widths
@@ -98,7 +101,7 @@ d1_l = tidyr::gather(d1, test, rej, rej_intersection, rej_oracle, rej_LRT, facto
               trial_test = as.factor(paste0('(',type_name,', ',test,')'))) %>%
        filter(test!='oracle')
   
-# Start plot   
+# Set up plot configuration   
 t.labs = c("t = 3", "t = 6")
 names(t.labs) = c(3, 6)
 
@@ -110,28 +113,39 @@ ann_arrows = data.frame(xmid=2, xmin=1, xmax=3, y=0.6, ymin=0.57, ymax=0.63, t=f
 ann_texts = data.frame(x=c(1.5,2.9), y=c(0.52,0.7), t=factor(3, levels=c(3,6)), 
                        pre_trt=factor(7, levels=c(3,5,7,9)), label=c("null", "alternative"))
 
-plt = ggplot(d1_l, aes(x=marginf, y=rej, colour=type_name, shape=test, group=trial_test)) +
-      geom_line(size=0.6) + geom_point(size=1.5) + scale_shape_manual(values=c(15, 17)) + 
-      facet_grid(pre_trt~t, scales='free', labeller = labeller(pre_trt=pre_trt.labs, t=t.labs)) + 
-      geom_hline(yintercept=0.025, linetype=2, size=0.4) + 
-      geom_vline(aes(xintercept=max_margin_null), linetype=6, size=0.4) + 
-      geom_segment(data=ann_arrows, aes(x=xmid,xend=xmin,y=ymin,yend=ymin), size=0.6, 
-                   arrow=arrow(length=unit(0.2,"cm")), show.legend=FALSE, inherit.aes=FALSE) + 
-      geom_point(data=ann_arrows, mapping=aes(x=xmid, y=ymin), size=1.5, shape=19, inherit.aes=FALSE) +
-      geom_segment(data=ann_arrows, aes(x=xmid,xend=xmax,y=ymax,yend=ymax), size=0.6, 
-                   arrow=arrow(length=unit(0.2,"cm")), show.legend=FALSE, inherit.aes=FALSE) +
-      geom_point(data=ann_arrows, aes(x=xmid, y=ymax), size=1.5, shape=1, inherit.aes=FALSE) +
-      geom_text(data=ann_texts,aes(x=x, y=y, label=label), size=4, show.legend=FALSE, inherit.aes=FALSE) +
-      scale_x_discrete('Margin', labels = parse(text=levels(d1_l$marginf)) ) +
-      scale_y_continuous(limits=c(0, 1)) +
-      labs(y='Empirical Rejection Rate', x='Margin') + theme_bw() +
-      guides(shape = guide_legend(override.aes = list(size=1.7))) +
-      theme(axis.text.x = element_text(size=14), axis.text.y = element_text(size=14),
-            axis.ticks.length = unit(2, 'pt'), axis.title.x = element_text(size=18), 
-            axis.title.y = element_text(size=18), legend.position = 'bottom', 
-            legend.text = element_text(size=16), legend.title = element_blank(),
-            panel.spacing.x = unit(0.2, 'lines'), panel.spacing.y = unit(0.2, 'lines'),  
-            strip.text.x = element_text(size=16), strip.text.y = element_text(size=16))
+# De-colorful plot
+# ggplot(d1_l, aes(x=marginf, y=rej, colour=type_name, shape=test, group=trial_test)) to be more specific
+plt = ggplot(d1_l, aes(x=marginf, y=rej, group=trial_test)) +
+  geom_line(size=0.6, aes(linetype=type_name, color=type_name)) + 
+  scale_linetype_manual(values=c(1, 6)) +
+  geom_point(size=1.5, aes(shape=test, color=type_name)) + 
+  scale_shape_manual(values=c(15, 17)) + 
+  facet_grid(pre_trt~t, scales='free', labeller = labeller(pre_trt=pre_trt.labs, t=t.labs)) + 
+  geom_hline(yintercept=0.025, linetype=2, size=0.4) + 
+  geom_vline(aes(xintercept=max_margin_null), linetype=2, size=0.4) + 
+  geom_segment(data=ann_arrows, aes(x=xmid,xend=xmin,y=ymin,yend=ymin), size=0.6, 
+               arrow=arrow(length=unit(0.2,"cm")), show.legend=FALSE, inherit.aes=FALSE) + 
+  geom_point(data=ann_arrows, mapping=aes(x=xmid, y=ymin), size=1.5, shape=19, inherit.aes=FALSE) +
+  geom_segment(data=ann_arrows, aes(x=xmid,xend=xmax,y=ymax,yend=ymax), size=0.6, 
+               arrow=arrow(length=unit(0.2,"cm")), show.legend=FALSE, inherit.aes=FALSE) +
+  geom_point(data=ann_arrows, aes(x=xmid, y=ymax), size=1.5, shape=1, inherit.aes=FALSE) +
+  geom_text(data=ann_texts,aes(x=x, y=y, label=label), size=4, show.legend=FALSE, inherit.aes=FALSE) +
+  scale_x_discrete('Margin', labels = parse(text=levels(d1_l$marginf)) ) +
+  scale_y_continuous(limits=c(0, 1)) +
+  labs(y='Empirical Rejection Rate', x='Margin') + theme_bw() +
+  guides(shape = guide_legend(override.aes = list(size=1.7))) +
+  theme(axis.text.x = element_text(size=14), axis.text.y = element_text(size=14),
+        axis.ticks.length = unit(2, 'pt'), axis.title.x = element_text(size=18), 
+        axis.title.y = element_text(size=18), legend.position = 'bottom', 
+        legend.text = element_text(size=14), legend.title = element_blank(),
+        legend.key.width= unit(1, 'cm'),
+        panel.spacing.x = unit(0.2, 'lines'), panel.spacing.y = unit(0.2, 'lines'),  
+        strip.text.x = element_text(size=16), strip.text.y = element_text(size=16))
+
+#ltfr_num = 10; delta_val = 0.7; alpha_one_side_val = '025'
+#plot_filename = paste0('decolor_rejrates_efficacycompetition_ltfr', ltfr_num, '_tol', delta_val, '_alpha', 
+#                       alpha_one_side_val, '_InterLRT.pdf')
+#ggsave(plt, file=plot_filename, height=5, width=7)
 
 
 ### Figure 4: Confidence width vs. Proportion of controls shared in HVTN 703 and 704
@@ -153,54 +167,147 @@ plt = ggplot( data=result, aes(x=sharing_rate, y=ci_width, group=Z)) +
 
 
 ##### Supplementary Materials 
+ltfr_num = 10;
+
+### Figures: Histograms for ratios of confidence interval widths for conditional/marginal relative risk ratios
+### under various simulation scenarios - Full plot
+scenario_vecs = c('', 'VE_bywindow', 'lower_sample-pexp')
 meth_vecs = c('cov_stratRR', 'cov_adjRR')
+meth_stuff = list('cov_stratRR'=c('#F8766D', 'cRRR'), #lightcoral
+                  'cov_adjRR'=c('#00BFC4', 'mRRR')) #darkturquoise
+
 select_vars_titles = list('mse_ratios'=c('Ratio of Mean Squared Errors', 'MSEratios'), 
                           'ci_width_ratios'=c('Ratio of Confidence Interval Widths', 'CIWidthratios'))
 varname = 'ci_width_ratios'
 title_text = select_vars_titles[[varname]][1]
 filename_text = select_vars_titles[[varname]][2]
 
-d1 = get(load('ratios_efficiencygain_ltfr10.Rdata')) %>%  filter(as.character(meth) %in% meth_vecs) %>%
-     mutate(meth_name = factor(meth, levels=c('cov_stratRR', 'cov_stratRR_nullZ', 'cov_adjRR') , 
-                               labels=c('Conditional Relative Risk Ratio', 'Unadjusted Relative Risk Ratio', 
-                                        'Marginal Relative Risk Ratio')),
-            acc_time_f = factor(acc_time, levels=c(6,9,12,18), labels=c('censored at 6', 'censored at 9', 
-                                                                        'censored at 12', 'censored at 18')))
-
 acc_time.labs = c("censored at 6", "censored at 9", "censored at 12", "censored at 18")
 names(acc_time.labs) = c(6, 9, 12, 18)
 t.labs = c("t = 3", "t = 6")
 names(t.labs) = c(3,6)
 
-### Figure 1: Ratio of confidence interval widths for conditional relative risk ratio - Full plot
-d2 = d1 %>% filter(meth=='cov_stratRR')
-plt = ggplot(d2, aes(x=d2[,varname])) + geom_vline(xintercept=1, linetype=2, size=0.8) +
+for (scenario in scenario_vecs){
+  suffix = ifelse(scenario=='', '', paste0('_', scenario))
+  filename = paste0('ratios_efficiencygain_ltfr10', suffix, '.Rdata')
+  d1 = get(load(filename)) %>%  filter(as.character(meth) %in% meth_vecs) %>%
+       mutate(meth_name = factor(meth, levels=c('cov_stratRR', 'cov_stratRR_nullZ', 'cov_adjRR') , 
+                               labels=c('Conditional Relative Risk Ratio', 'Unadjusted Relative Risk Ratio', 
+                                        'Marginal Relative Risk Ratio')),
+              acc_time_f = factor(acc_time, levels=c(6,9,12,18), labels=c('censored at 6', 'censored at 9', 
+                                                                          'censored at 12', 'censored at 18')))
+  for (meth0 in meth_vecs){
+    d2 = d1 %>% filter(meth==meth0)
+    plt = ggplot(d2, aes(x=d2[,varname])) + geom_vline(xintercept=1, linetype=2, size=0.8) +
       geom_histogram(binwidth=0.05, alpha=.8, position="identity", color='black', fill='cornflower blue') +
       facet_grid(acc_time~t, scales='free', labeller = labeller(acc_time=acc_time.labs, t=t.labs)) +
-      scale_y_continuous(limits=c(0, 8)) + labs(x=title_text, y='Count') + theme_bw() +
+      scale_y_continuous(limits=c(0,8)) +
+      labs(x=title_text, y='Count') + theme_bw() +
       theme(axis.text.x = element_text(size=13), axis.text.y = element_text(size=13), 
             axis.ticks.length = unit(2, 'pt'),
             axis.title.x = element_text(size=20), axis.title.y = element_text(size=20),
             legend.position = 'none', 
             panel.spacing.x = unit(0.2, 'lines'), panel.spacing.y = unit(0.2, 'lines'),
             strip.text.x = element_text(size=14), strip.text.y = element_text(size=12))
+    
+    #prefix = ifelse(scenario=='', '', paste0(scenario, '_'))
+    #plot_filename = paste0(prefix, filename_text, '_', meth_stuff[[meth0]][2], 
+    #                       '_efficiencygain_ltfr', ltfr_num, '_hist.pdf')
+    #ggsave(plt, file=plot_filename, height=6, width=8)
+  }
+}
+
 
  
-### Figure 2: Ratio of confidence interval widths for marginal relative risk ratio - Full plot
-d2 = d1 %>% filter(meth=='cov_adjRR')
-plt = ggplot(d2, aes(x=d2[,varname])) + geom_vline(xintercept=1, linetype=2, size=0.8) +
-      geom_histogram(binwidth=0.05, alpha=.8, position='identity', color='black', fill='cornflower blue') +
-      facet_grid(acc_time~t, scales='free', labeller = labeller(acc_time=acc_time.labs, t=t.labs)) +
-      scale_y_continuous(limits=c(0, 8)) + labs(x=title_text, y='Count') + theme_bw() +
-      theme(axis.text.x = element_text(size=13), axis.text.y = element_text(size=13), 
-            axis.ticks.length = unit(2, 'pt'),
-            axis.title.x = element_text(size=20), axis.title.y = element_text(size=20),
-            legend.position = 'none', 
-            panel.spacing.x = unit(0.2, 'lines'), panel.spacing.y = unit(0.2, 'lines'),
-            strip.text.x = element_text(size=14), strip.text.y = element_text(size=12))
+### Figures: Empirical rejeciton rates of the intersection test and the likelihood ratio test 
+### under various simulation scenarios
+scenario_vecs = c('VE_bywindow', 'lower_sample-pexp')
+
+# Get true parameters
+true_pars0 = get(load('add_true_pars_efficacycompetition.Rdata'))
+
+# Set up plot configuration   
+ltfr_num = 10; delta_val = 0.7; alpha_one_side_val = '025'
+t.labs = c("t = 3", "t = 6")
+names(t.labs) = c(3, 6)
+
+pre_trt.labs = c("Intervention 7", "Intervention 9")
+names(pre_trt.labs) = c(7, 9)
+
+ann_arrows = data.frame(xmid=2, xmin=1, xmax=3, y=0.6, ymin=0.57, ymax=0.63, t=factor(3, levels=c(3,6)), 
+                        pre_trt=factor(7, levels=c(3,5,7,9)))
+ann_texts = data.frame(x=c(1.5,2.9), y=c(0.52,0.7), t=factor(3, levels=c(3,6)), 
+                       pre_trt=factor(7, levels=c(3,5,7,9)), label=c("null", "alternative"))
 
 
-### Figure 3: The numbers of participants enrolled in various groups and windows across trials
+for (scenario_val in scenario_vecs){
+
+# Obtain the boundry in margin between the null and complementary alternatives
+  true_pars = true_pars0 %>% filter(scenario==scenario_val)
+  diff_RRs = aggregate(true_pars[,'RRdiff'], list(true_pars$t, true_pars$a1), FUN=max)
+  names(diff_RRs) = c('t', 'pre_trt', 'diff_RRs')
+  margins = seq(0, 0.4, 0.1)
+  for (m in margins) { col_name = paste0('diff_vs_', m)
+  diff_RRs[ ,col_name] = m*(diff_RRs[,'diff_RRs'] >= m) }
+  diff_RRs$max_margin_null = as.character(apply(diff_RRs[,grepl('diff_vs_', names(diff_RRs))], 1, max))
+  diff_RRs = diff_RRs[diff_RRs$pre_trt!=3,-(c(1:dim(diff_RRs)[2])*grepl('diff_vs_', names(diff_RRs)))]
+
+# Prepare data for plot 
+  acc_time_val = 6; delta_val = 0.7; pre_trts = c(7,9); 
+  meth_vecs = c('intersection_test','likelihood_ratio_test')
+  
+  filename = paste0('stats_efficacycompetition_ltfr10_alpha025_comparison_', scenario_val, '.Rdata')
+
+  d1 = get(load(filename)) %>%
+    filter(acc_time==acc_time_val & tolerance==delta_val & pre_trt%in%pre_trts) %>%
+    left_join(., diff_RRs, by=c('t', 'pre_trt')) %>%
+    mutate(type_name = factor(trial_type, levels=c('platform', 'separate'), labels=c('platform', 'separate')),
+           marginf = factor(margin, levels=c(0, 0.1, 0.2, 0.3, 0.4), labels=c('0','0.1','0.2','0.3','0.4')),
+           acc_time_f = factor(acc_time, levels=c(6,18), labels=c('censored at t=6', 'censored at t=18')))
+
+  d1 = d1[with(d1, order(t, pre_trt, trial_type, acc_time, margin, tolerance)),]
+
+  d1_l = tidyr::gather(d1, test, rej, rej_intersection, rej_oracle, rej_LRT, factor_key=TRUE) %>%
+           mutate(test = gsub('rej_', '', test),
+                  trial_test = as.factor(paste0('(',type_name,', ',test,')'))) %>%
+           filter(test!='oracle')
+
+# De-colorful plot
+# ggplot(d1_l, aes(x=marginf, y=rej, colour=type_name, shape=test, group=trial_test)) to be more specific
+  plt = ggplot(d1_l, aes(x=marginf, y=rej, group=trial_test)) +
+    geom_line(size=0.6, aes(linetype=type_name, color=type_name)) + 
+    scale_linetype_manual(values=c(1, 6)) +
+    geom_point(size=1.5, aes(shape=test, color=type_name)) + 
+    scale_shape_manual(values=c(15, 17)) + 
+    facet_grid(pre_trt~t, scales='free', labeller = labeller(pre_trt=pre_trt.labs, t=t.labs)) + 
+    geom_hline(yintercept=0.025, linetype=2, size=0.4) + 
+    geom_vline(aes(xintercept=max_margin_null), linetype=2, size=0.4) + 
+    geom_segment(data=ann_arrows, aes(x=xmid,xend=xmin,y=ymin,yend=ymin), size=0.6, 
+                 arrow=arrow(length=unit(0.2,"cm")), show.legend=FALSE, inherit.aes=FALSE) + 
+    geom_point(data=ann_arrows, mapping=aes(x=xmid, y=ymin), size=1.5, shape=19, inherit.aes=FALSE) +
+    geom_segment(data=ann_arrows, aes(x=xmid,xend=xmax,y=ymax,yend=ymax), size=0.6, 
+                 arrow=arrow(length=unit(0.2,"cm")), show.legend=FALSE, inherit.aes=FALSE) +
+    geom_point(data=ann_arrows, aes(x=xmid, y=ymax), size=1.5, shape=1, inherit.aes=FALSE) +
+    geom_text(data=ann_texts,aes(x=x, y=y, label=label), size=4, show.legend=FALSE, inherit.aes=FALSE) +
+    scale_x_discrete('Margin', labels = parse(text=levels(d1_l$marginf)) ) +
+    scale_y_continuous(limits=c(0, 1)) +
+    labs(y='Empirical Rejection Rate', x='Margin') + theme_bw() +
+    guides(shape = guide_legend(override.aes = list(size=1.7))) +
+    theme(axis.text.x = element_text(size=14), axis.text.y = element_text(size=14),
+          axis.ticks.length = unit(2, 'pt'), axis.title.x = element_text(size=18), 
+          axis.title.y = element_text(size=18), legend.position = 'bottom', 
+          legend.text = element_text(size=14), legend.title = element_blank(),
+          legend.key.width= unit(1, 'cm'),
+          panel.spacing.x = unit(0.2, 'lines'), panel.spacing.y = unit(0.2, 'lines'),  
+          strip.text.x = element_text(size=16), strip.text.y = element_text(size=16))
+
+    plot_filename = paste0('decolor_', scenario_val, '_rejrates_efficacycompetition_ltfr', ltfr_num, '_tol', 
+                           delta_val, '_alpha', alpha_one_side_val, '_InterLRT.pdf')
+    ggsave(plt, file=plot_filename, height=5, width=7) 
+}
+
+
+### Figure 9: The numbers of participants enrolled in various groups and windows across trials
 p.labs = c('HVTN 703', 'HVTN 704'); names(p.labs) = c('HVTN 703', 'HVTN 704')
 gp_freq = get(load('frequency_across_windows.Rdata'))
 plt = ggplot(gp_freq, aes(x=W, y=freq, fill=txf, label=freq, group=txf)) + 

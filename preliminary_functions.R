@@ -33,25 +33,29 @@ Create_window_intervals_bymonth = function(start_date, widths_in_months){
 }
 
 Assign_window = function(target_date, window_intervals){
-  window_indx = sum( (1:nrow(window_intervals))*(window_intervals[,'start']<=target_date & 
-                                                 target_date<=window_intervals[,'end']) )
+  window_indx = sum( (1:nrow(window_intervals))*(window_intervals[,'start']<=target_date & target_date<=window_intervals[,'end']) )
   return( window_indx )
 }
 
 round_df <- function(df, digits) {
   numeric_columns <- sapply(df, mode) == 'numeric'
-  df[numeric_columns] <- round(df[numeric_columns], digits)
+  df[numeric_columns] <-  round(df[numeric_columns], digits)
   return( df )
 }
 
-True_StratCumIncidence = function(t, ws, a, z, data){ 
-  # ws: a column vector with >=1 element
-  data1 = subset(data, W %in% ws & A==a & Z==z, select=c(T0))
-  return( mean(data1$T0 <= t) )
+True_StratCumIncidences = function(t, ws, a, z, trial_type, data){ # ws: a column vector with >=1 element
+  if (trial_type=='platform'){
+    data0 = subset(data, W %in% ws & A==0 & Z==z, select=c(T0))
+    data1 = subset(data, W %in% ws & A==a & Z==z, select=c(T0))
+  } else if (trial_type=='separate'){
+    data0 = subset(data, W %in% ws & A==0 & Z==z & Label_A==a, select=c(T0))
+    data1 = subset(data, W %in% ws & A==a & Z==z & Label_A==a, select=c(T0)) }
+  
+  True_stratF0 = mean(data0$T0 <= t); True_stratF1 = mean(data1$T0 <= t)
+  return( data.frame('strat_F0'=True_stratF0, 'strat_Fa'=True_stratF1) )
 }
 
-True_StratRelativeRisk = function(t, ws, a, z, trial_type, data){ 
-  # ws: a column vector with >=1 element
+True_StratRelativeRisk = function(t, ws, a, z, trial_type, data){ # ws: a column vector with >=1 element
   if (trial_type=='platform'){
     data0 = subset(data, W %in% ws & A==0 & Z==z, select=c(T0))
     data1 = subset(data, W %in% ws & A==a & Z==z, select=c(T0))
@@ -63,21 +67,51 @@ True_StratRelativeRisk = function(t, ws, a, z, trial_type, data){
   return( True_F1_z/True_F0_z )
 }
 
-True_contrast_StratRRs = function(t, ws1, ws2, a1, a2, z, contrast_func, trial_type, data){ 
-  # ws1, ws2: column vectors with >=1 element
+True_AdjRelativeRisk = function(t, ws, a, trial_type, data){ # ws: a column vector with >=1 element
+  if (trial_type=='platform'){
+    data0 = subset(data, W %in% ws & A==0); data1 = subset(data, W %in% ws & A==a)
+    
+    z_vals = unique(data$Z)
+    ret = do.call(rbind, lapply(1:length(z_vals), function(j){
+      p_z0 = dim(subset(data0, Z==z_vals[j]))[1]/dim(data0)[1]
+      p_za = dim(subset(data1, Z==z_vals[j]))[1]/dim(data1)[1]
+      ret0 = True_StratCumIncidences(t, ws, a, z=z_vals[j], trial_type, data)
+      return( data.frame('wt_strat_F0'=ret0$strat_F0*p_z0, 'wt_strat_Fa'=ret0$strat_Fa*p_za) ) }))
+    
+  } else if (trial_type=='separate'){
+    data0 = subset(data, W %in% ws & A==0 & Label_A==a); data1 = subset(data, W %in% ws & A==a & Label_A==a)
+    
+    z_vals = unique(data$Z)
+    ret = do.call(rbind, lapply(1:length(z_vals), function(j){
+      p_z0 = dim(subset(data0, Z==z_vals[j]))[1]/dim(data0)[1]
+      p_za = dim(subset(data1, Z==z_vals[j]))[1]/dim(data1)[1]
+      ret0 = True_StratCumIncidences(t, ws, a, z=z_vals[j], trial_type, data)
+      return( data.frame('wt_strat_F0'=ret0$strat_F0*p_z0, 'wt_strat_Fa'=ret0$strat_Fa*p_za) ) }))
+  }
+  True_F0 = sum(ret$wt_strat_F0); True_F1 = sum(ret$wt_strat_Fa)
+  return( True_F1/True_F0 )
+}
+
+True_contrast_StratRRs = function(t, ws1, ws2, a1, a2, z, contrast_func, trial_type, data){ # ws1, ws2: column vectors with >=1 element
   srr1 = True_StratRelativeRisk(t, ws1, a1, z, trial_type, data)
   srr2 = True_StratRelativeRisk(t, ws2, a2, z, trial_type, data)
   val = if (contrast_func=='difference') { srr1-srr2 } else if (contrast_func=='ratio') { srr1/srr2 }    
   return( val )
 }
 
-True_CumIncidence = function(t, ws, a, data){ # ws: a column vector with >=1 element
-  data1 = subset(data, W %in% ws & A==a, select=c(T0))
-  return( mean(data1$T0 <= t) )
+True_CumIncidences = function(t, ws, a, trial_type, data){ # ws: a column vector with >=1 element
+  if (trial_type=='platform'){
+    data0 = subset(data, W %in% ws & A==0, select=c(T0))
+    data1 = subset(data, W %in% ws & A==a, select=c(T0))
+  } else if (trial_type=='separate'){
+    data0 = subset(data, W %in% ws & A==0 & Label_A==a, select=c(T0))
+    data1 = subset(data, W %in% ws & A==a & Label_A==a, select=c(T0)) }
+  
+  True_F0 = mean(data0$T0 <= t); True_F1 = mean(data1$T0 <= t)
+  return( data.frame('F0'=True_F0, 'Fa'=True_F1) )
 }
 
-True_RelativeRisk = function(t, ws, a, trial_type, data){ 
-  # ws: a column vector with >=1 element
+True_RelativeRisk = function(t, ws, a, trial_type, data){ # ws: a column vector with >=1 element
   if (trial_type=='platform'){
     data0 = subset(data, W %in% ws & A==0, select=c(T0))
     data1 = subset(data, W %in% ws & A==a, select=c(T0))
@@ -89,8 +123,7 @@ True_RelativeRisk = function(t, ws, a, trial_type, data){
   return( True_F1/True_F0 )
 }
 
-True_contrast_RRs = function(t, ws1, ws2, a1, a2, contrast_func, trial_type, data){ 
-  # ws1, ws2: column vectors with >=1 element
+True_contrast_RRs = function(t, ws1, ws2, a1, a2, contrast_func, trial_type, data){ # ws1, ws2: column vectors with >=1 element
   rr1 = True_RelativeRisk(t, ws1, a1, trial_type, data)
   rr2 = True_RelativeRisk(t, ws2, a2, trial_type, data)
   val = if (contrast_func=='difference') { rr1-rr2 } else if (contrast_func=='ratio') { rr1/rr2 }    
@@ -109,8 +142,24 @@ Get_probs_separate_trials = function(data){
   return( probs_separate_trials )
 }
 
+### To be reviewed
+Cox_Elements = function(t, beta, ws, a, data){ # ws: a column vector with >=1 element
+  X = data$X; W = data$W; A = data$A
+  S0 = sum( (X >= t & W %in% ws & A %in% c(a,0))*exp(beta*(A==a)) )/n
+  S1 = sum( (X >= t & W %in% ws & A %in% c(a,0))*(1*(A==a))*exp(beta*(A==a)) )/n
+  S2 = sum( (X >= t & W %in% ws & A %in% c(a,0))*((1*(A==a))^2)*exp(beta*(A==a)) )/n
+  return( data.frame('S0'=S0, 'S1'=S1, 'S2'=S2) )
+}
 
-##### To compute the event numbers for treatment and placebo groups at different time points
+Cox_Elements_self = function(beta, ws, a, data){ # ws: a column vector with >=1 element
+  X = data$X; W = data$W; A = data$A
+  S0 = colSums( outer(X, X, '>=') * matrix(rep((W %in% ws & A %in% c(a,0))*exp(beta*(A==a)), length(X))) )/n
+  S1 = colSums( outer(X, X, '>=') * matrix(rep((W %in% ws & A %in% c(a,0))*(1*(A==a))*exp(beta*(A==a)), length(X))) )/n
+  S2 = colSums( outer(X, X, '>=') * matrix(rep((W %in% ws & A %in% c(a,0))*((1*(A==a))^2)*exp(beta*(A==a)), length(X))) )/n
+  return( data.frame('S0'=S0, 'S1'=S1, 'S2'=S2) )
+}
+
+# To compute the event numbers for treatment and placebo groups at different time points
 Compute_EventsOfGroups_ByTime = function(t, incidence_rates, data){
   
   temp0 = do.call(rbind, lapply(1:k, function(i, t0=t){ 
@@ -137,8 +186,7 @@ Compute_EventsOfGroups_ByTime = function(t, incidence_rates, data){
     return (result_df) } )) 
 }
 
-
-##### To find the time when the event number start >=150 per group
+# To find the time when the event number start >=150 per group
 Get_Time_ToEventNums = function(num, incidence_rates, data, ts){ 
   
   temp_events = do.call(cbind, lapply(1:length(ts), function(i){ 
@@ -154,3 +202,61 @@ Get_Time_ToEventNums = function(num, incidence_rates, data, ts){
   
   return (result_df) 
 }
+
+colStandardization <- function(mat, colSD, block_size=1e5) {
+  num_portions = ceiling(dim(mat)[2]/block_size) - 1
+  
+  if (num_portions == 0) {
+    n0 = dim(mat)[1]
+    results = (mat - matrix(rep(colMeans(mat), n0), nrow=n0, byrow=TRUE))/matrix(rep(colSD, n0), nrow=n0, byrow=TRUE)
+  } else {
+    results = data.frame(rep(NA, dim(mat)[1]))
+    for (i in 0:num_portions){
+      if (i < num_portions) {
+        sub_mat = mat[,(1+i*block_size):((i+1)*block_size)]
+        sub_colSD = colSD[(1+i*block_size):((i+1)*block_size)]
+      } else {
+        sub_mat = mat[,(1+i*block_size):dim(mat)[2]]  
+        sub_colSD = colSD[(1+i*block_size):dim(mat)[2]] }
+      
+      nn = dim(sub_mat)[1]
+      result = (sub_mat - matrix(rep(colMeans(sub_mat), nn), nrow=nn, byrow=TRUE))/matrix(rep(sub_colSD, nn), nrow=nn, byrow=TRUE)
+      results = cbind( results, result ) }
+    
+    results = results[,-1] }
+  
+  return (results) 
+}  
+
+colVars <- function(mat, sd_use, block_size=1e5, na.rm=TRUE) {
+  
+  if (is.null(dim(mat))) {
+    results = rep(0, length(mat)) 
+  } else {
+    if (dim(mat)[1] <= 1) {
+      results = rep(0, length(mat))
+    } else {
+      num_portions = ceiling(dim(mat)[2]/block_size) - 1
+      
+      if (num_portions == 0) {
+        nn = ifelse(na.rm, colSums(!is.na(mat)), nrow(mat))
+        colVar = (colMeans(mat*mat, na.rm=na.rm) - (colMeans(mat, na.rm=na.rm))^2)*nn/(nn-1)
+        if (sd_use) { results = sqrt(colVar) } else { results = colVar }
+        
+      } else {
+        results = NULL
+        for (i in 0:num_portions){
+          if (i < num_portions) {
+            sub_mat = mat[,(1+i*block_size):((i+1)*block_size)]
+          } else {
+            sub_mat = mat[,(1+i*block_size):dim(mat)[2]]  }
+          
+          nn = ifelse(na.rm, colSums(!is.na(sub_mat)), nrow(sub_mat))
+          colVar = (colMeans(sub_mat*sub_mat, na.rm=na.rm) - (colMeans(sub_mat, na.rm=na.rm))^2)*nn/(nn-1)
+          
+          if (sd_use) { result = sqrt(colVar) } else { result = colVar }
+          
+          results = c( results, result ) } } } }
+  
+  return (results)
+} 
